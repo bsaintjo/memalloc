@@ -1,0 +1,8 @@
+[package]
+name = "memalloc"
+version = "0.1.0"
+authors = ["Brandon Saint-John <bsaintjo@ucsc.edu>"]
+edition = "2018"
+
+[dependencies]
+libc = "0.2"
