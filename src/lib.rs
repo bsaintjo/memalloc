@@ -1,13 +1,26 @@
+use std::alloc::GlobalAlloc;
+use std::alloc::Layout;
 use std::ptr;
 use std::mem;
-use libc;
 use libc::{c_void, ssize_t, pthread_mutex_t};
 
 static mut GLOBAL_MALLOC_LOCK: *mut pthread_mutex_t = ptr::null_mut();
 static mut HEAD: *mut Header = ptr::null_mut();
 static mut TAIL: *mut Header = ptr::null_mut();
 
-#[repr(C)]
+pub struct MeMalloc;
+
+unsafe impl GlobalAlloc for MeMalloc {
+    unsafe fn alloc(&self, _layout: Layout) -> *mut u8 {
+        unimplemented!()
+    }
+
+    unsafe fn dealloc(&self, ptr: *mut u8, _layout: Layout) {
+        unimplemented!()
+    }
+}
+
+#[repr(C, align(16))]
 struct Header {
     size: ssize_t,
     is_free: bool,
@@ -23,10 +36,13 @@ impl Header {
             }
             curr = (*curr).next;
         }
-        return curr
+        curr
     }
 }
 
+/// # Safety
+/// 
+/// Implementation of allocating function using linked-lists and sbrk
 #[no_mangle]
 pub unsafe extern fn malloc(size: ssize_t) -> *mut c_void {
     if size == 0 {
@@ -63,5 +79,15 @@ pub unsafe extern fn malloc(size: ssize_t) -> *mut c_void {
     }
     TAIL = header;
     libc::pthread_mutex_unlock(GLOBAL_MALLOC_LOCK);
-    return header as *mut c_void
+    header as *mut c_void
+}
+
+unsafe fn free(block: *mut c_void) {
+    if block.is_null() {
+        return ;
+    }
+    libc::pthread_mutex_lock(GLOBAL_MALLOC_LOCK);
+    let header = block.offset(-1) as *mut Header;
+
+    libc::pthread_mutex_unlock(GLOBAL_MALLOC_LOCK);
 }
